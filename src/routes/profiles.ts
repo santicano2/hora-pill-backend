@@ -31,12 +31,10 @@ router.get("/", async (req, res) => {
     res.json(profiles); // Devuelve la lista de perfiles
   } catch (error: any) {
     console.error(`Error en GET /api/profiles para userId ${userId}:`, error);
-    res
-      .status(500)
-      .json({
-        message: "Error al obtener los perfiles.",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error al obtener los perfiles.",
+      error: error.message,
+    });
   }
 });
 
@@ -122,5 +120,80 @@ router.get("/:profileId", async (req, res) => {
 
 // Aquí podrías añadir rutas para PUT (actualizar) y DELETE (eliminar) perfiles
 // siguiendo la misma lógica de verificación de pertenencia al usuario.
+
+// --- Opcional: Actualizar un Perfil ---
+// PUT /api/profiles/:profileId
+router.put("/:profileId", async (req, res) => {
+  const userId = req.user?.id;
+  const { profileId } = req.params;
+  const { name } = req.body; // Obtiene el nuevo nombre del cuerpo de la petición
+
+  if (!userId) return res.status(401).json({ message: "No autenticado." });
+  if (!profileId)
+    return res.status(400).json({ message: "ID de perfil requerido." });
+  if (!name || typeof name !== "string" || name.trim() === "")
+    return res
+      .status(400)
+      .json({ message: "El nombre del perfil es requerido." });
+
+  console.log(
+    `PUT /api/profiles/${profileId} - Solicitado por userId: ${userId}, Nuevo Nombre: ${name}`
+  );
+
+  try {
+    const updatedProfile = await prisma.profile.update({
+      where: { id: profileId },
+      data: { name: name.trim() }, // Actualiza el nombre del perfil
+    });
+
+    console.log(
+      `Perfil ${profileId} actualizado exitosamente para userId ${userId}.`
+    );
+    res.json(updatedProfile); // Devuelve el perfil actualizado
+  } catch (error: any) {
+    console.error(
+      `Error en PUT /api/profiles/${profileId} para userId ${userId}:`,
+      error
+    );
+    res.status(500).json({
+      message: "Error al actualizar el perfil.",
+      error: error.message,
+    });
+  }
+});
+
+// --- Opcional: Eliminar un Perfil ---
+// DELETE /api/profiles/:profileId
+router.delete("/:profileId", async (req, res) => {
+  const userId = req.user?.id;
+  const { profileId } = req.params;
+
+  if (!userId) return res.status(401).json({ message: "No autenticado." });
+  if (!profileId)
+    return res.status(400).json({ message: "ID de perfil requerido." });
+
+  console.log(
+    `DELETE /api/profiles/${profileId} - Solicitado por userId: ${userId}`
+  );
+
+  try {
+    const deletedProfile = await prisma.profile.delete({
+      where: { id: profileId },
+    });
+
+    console.log(
+      `Perfil ${profileId} eliminado exitosamente para userId ${userId}.`
+    );
+    res.json(deletedProfile); // Devuelve el perfil eliminado
+  } catch (error: any) {
+    console.error(
+      `Error en DELETE /api/profiles/${profileId} para userId ${userId}:`,
+      error
+    );
+    res
+      .status(500)
+      .json({ message: "Error al eliminar el perfil.", error: error.message });
+  }
+});
 
 export default router;
