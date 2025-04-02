@@ -32,12 +32,9 @@ router.get("/", async (req, res) => {
 
   if (!userId) return res.status(401).json({ message: "No autenticado." });
   if (!profileId)
-    return res
-      .status(400)
-      .json({
-        message:
-          "Se requiere el ID del perfil (profileId) como query parameter.",
-      });
+    return res.status(400).json({
+      message: "Se requiere el ID del perfil (profileId) como query parameter.",
+    });
 
   console.log(
     `GET /api/medications?profileId=${profileId} - Solicitado por userId: ${userId}`
@@ -71,12 +68,10 @@ router.get("/", async (req, res) => {
       `Error en GET /api/medications para profileId ${profileId}, userId ${userId}:`,
       error
     );
-    res
-      .status(500)
-      .json({
-        message: "Error al obtener los medicamentos.",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error al obtener los medicamentos.",
+      error: error.message,
+    });
   }
 });
 
@@ -103,11 +98,9 @@ router.post("/", async (req, res) => {
     currentStock === undefined ||
     currentStock === null
   ) {
-    return res
-      .status(400)
-      .json({
-        message: "Faltan datos requeridos (profileId, name, currentStock).",
-      });
+    return res.status(400).json({
+      message: "Faltan datos requeridos (profileId, name, currentStock).",
+    });
   }
   console.log(
     `POST /api/medications - Solicitado por userId: ${userId} para profileId: ${profileId}`
@@ -120,12 +113,10 @@ router.post("/", async (req, res) => {
       console.warn(
         `Acceso denegado: userId ${userId} intentó añadir medicamento al profileId ${profileId} que no le pertenece.`
       );
-      return res
-        .status(404)
-        .json({
-          message:
-            "Perfil no encontrado o no tienes permiso para añadirle medicamentos.",
-        });
+      return res.status(404).json({
+        message:
+          "Perfil no encontrado o no tienes permiso para añadirle medicamentos.",
+      });
     }
 
     // Convierte currentStock y lowStockThreshold a números (vienen como string a veces de JSON)
@@ -134,12 +125,9 @@ router.post("/", async (req, res) => {
       lowStockThreshold !== undefined ? parseInt(lowStockThreshold, 10) : 5; // Valor por defecto si no se envía
 
     if (isNaN(stock) || isNaN(threshold)) {
-      return res
-        .status(400)
-        .json({
-          message:
-            "currentStock y lowStockThreshold deben ser números válidos.",
-        });
+      return res.status(400).json({
+        message: "currentStock y lowStockThreshold deben ser números válidos.",
+      });
     }
 
     // Crea el medicamento asociado al perfil verificado
@@ -173,12 +161,10 @@ router.post("/", async (req, res) => {
         .status(404)
         .json({ message: "El perfil especificado no existe." });
     }
-    res
-      .status(500)
-      .json({
-        message: "Error al añadir el medicamento.",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error al añadir el medicamento.",
+      error: error.message,
+    });
   }
 });
 
@@ -249,12 +235,10 @@ router.patch("/:medicationId/taken", async (req, res) => {
       `Error en PATCH /api/medications/${medicationId}/taken para userId ${userId}:`,
       error
     );
-    res
-      .status(500)
-      .json({
-        message: "Error al actualizar el stock del medicamento.",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error al actualizar el stock del medicamento.",
+      error: error.message,
+    });
   }
 });
 
@@ -303,15 +287,110 @@ router.delete("/:medicationId", async (req, res) => {
       `Error en DELETE /api/medications/${medicationId} para userId ${userId}:`,
       error
     );
-    res
-      .status(500)
-      .json({
-        message: "Error al eliminar el medicamento.",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Error al eliminar el medicamento.",
+      error: error.message,
+    });
   }
 });
 
-// Aquí podrías añadir rutas para PUT (actualizar todos los datos de un medicamento)
+// --- Opcional: Modificar un Medicamento ---
+// PUT /api/medications/:medicationId
+router.put("/:medicationId", async (req, res) => {
+  const userId = req.user?.id;
+  const { medicationId } = req.params;
+  const {
+    name,
+    dosage,
+    currentStock,
+    lowStockThreshold,
+    takeTime,
+    frequency,
+    notes,
+  } = req.body;
+
+  if (!userId) return res.status(401).json({ message: "No autenticado." });
+  if (!medicationId)
+    return res
+      .status(400)
+      .json({ message: "Se requiere el ID del medicamento." });
+
+  // Si no se proporciona ningún campo para actualizar
+  if (Object.keys(req.body).length === 0) {
+    return res.status(400).json({
+      message: "Debe proporcionar al menos un campo para actualizar.",
+    });
+  }
+
+  try {
+    // Verificación de seguridad
+    const medication = await prisma.medication.findUnique({
+      where: { id: medicationId },
+      select: {
+        profile: { select: { userId: true } },
+        currentStock: true,
+      },
+    });
+
+    if (!medication || medication.profile?.userId !== userId) {
+      console.warn(
+        `Acceso denegado: userId ${userId} intentó modificar el medicationId ${medicationId}`
+      );
+      return res
+        .status(404)
+        .json({ message: "Medicamento no encontrado o no tienes permiso." });
+    }
+
+    // Construye el objeto de actualización solo con los campos proporcionados
+    const updateData: any = {};
+
+    if (name !== undefined) updateData.name = name;
+    if (dosage !== undefined) updateData.dosage = dosage;
+    if (takeTime !== undefined) updateData.takeTime = takeTime;
+    if (frequency !== undefined) updateData.frequency = frequency;
+    if (notes !== undefined) updateData.notes = notes;
+
+    // Manejo especial para campos numéricos
+    if (currentStock !== undefined) {
+      const stock = parseInt(currentStock, 10);
+      if (isNaN(stock)) {
+        return res.status(400).json({
+          message: "El valor de currentStock debe ser un número válido.",
+        });
+      }
+      updateData.currentStock = stock;
+    }
+
+    if (lowStockThreshold !== undefined) {
+      const threshold = parseInt(lowStockThreshold, 10);
+      if (isNaN(threshold)) {
+        return res.status(400).json({
+          message: "El valor de lowStockThreshold debe ser un número válido.",
+        });
+      }
+      updateData.lowStockThreshold = threshold;
+    }
+
+    // Realiza la actualización solo con los campos proporcionados
+    const updatedMedication = await prisma.medication.update({
+      where: { id: medicationId },
+      data: updateData,
+    });
+
+    console.log(
+      `Medicamento ${medicationId} actualizado exitosamente por userId ${userId}`
+    );
+    res.json(updatedMedication);
+  } catch (error: any) {
+    console.error(
+      `Error en PUT /api/medications/${medicationId} para userId ${userId}:`,
+      error
+    );
+    res.status(500).json({
+      message: "Error al modificar el medicamento.",
+      error: error.message,
+    });
+  }
+});
 
 export default router;
