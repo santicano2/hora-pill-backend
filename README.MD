@@ -1,4 +1,4 @@
-# Hora Pill Backend
+# Hora Pill Backend.
 
 # Stack
 
